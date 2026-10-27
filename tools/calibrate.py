@@ -61,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--drone", action="store_true",
                    help="use the Wi-Fi drone camera (see the drone: section of the config) instead of a webcam")
     p.add_argument("--images", type=Path, default=None, help="calibrate from a folder of images instead")
-    p.add_argument("--views", type=int, default=20, help="number of views to capture")
+    p.add_argument("--views", type=int, default=20, help="minimum number of views before Enter can finish")
     p.add_argument("--min-motion-px", type=float, default=40.0,
                    help="mean corner displacement vs. every previous capture needed to accept a new view")
     p.add_argument("--subpix-window", type=int, default=11, help="cornerSubPix half-window (px)")
@@ -112,9 +112,10 @@ def capture_live(args: argparse.Namespace, pattern: tuple[int, int]) -> tuple[li
     cfg = load_config(args.config)
     cam = DroneSource(cfg.drone) if args.drone else WebcamSource(args.camera_index, cfg.source)
     captured: list[np.ndarray] = []
-    log.info("Show the board to the camera; views are captured automatically. Q / Esc aborts.")
+    log.info("Show the board to the camera; views are captured automatically. "
+             "Enter finishes once %d views exist; Q / Esc aborts.", args.views)
     try:
-        while len(captured) < args.views:
+        while True:
             item = cam.read()
             if item is None:
                 raise RuntimeError("camera stopped delivering frames")
@@ -128,11 +129,15 @@ def capture_live(args: argparse.Namespace, pattern: tuple[int, int]) -> tuple[li
                     captured.append(corners)
                     view[:] = 255 - view  # flash to show a capture
                     log.info("captured view %d/%d", len(captured), args.views)
-            cv2.putText(view, f"views {len(captured)}/{args.views}", (10, 25),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            ready = len(captured) >= args.views
+            label = f"views {len(captured)} (min {args.views})" + ("  Enter = calibrate" if ready else "")
+            cv2.putText(view, label, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.imshow("calibrate", view)
-            if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), 27):
                 raise SystemExit("aborted")
+            if key in (10, 13) and ready:
+                break
         return captured, (cam.width, cam.height)
     finally:
         cam.close()
