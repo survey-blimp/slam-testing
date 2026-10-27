@@ -34,6 +34,7 @@ ORB-SLAM3 equivalent: none (ORB-SLAM3 expects a calibrated settings file).
 import argparse
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -67,6 +68,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--subpix-window", type=int, default=11, help="cornerSubPix half-window (px)")
     p.add_argument("--config", type=Path, default=Path("config/default.yaml"))
     p.add_argument("--output", type=Path, default=Path("config/camera.yaml"))
+    p.add_argument("--save-corners", type=Path, default=None,
+                   help="where to save the detected corners for tools/calib_report.py "
+                        "(default data/calib_corners_<time>.npz)")
     return p.parse_args()
 
 
@@ -171,6 +175,13 @@ def main() -> int:
     if len(captured) < 3:
         log.error("Only %d usable views; need at least 3 (20+ recommended)", len(captured))
         return 1
+
+    corners_file = args.save_corners or Path("data") / f"calib_corners_{datetime.now():%Y%m%d_%H%M%S}.npz"
+    corners_file.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(corners_file, corners=np.array([c.reshape(-1, 2) for c in captured]),
+             size=np.array(size), pattern=np.array(pattern), square_mm=args.square_mm)
+    log.info("Saved %d views' corners to %s (analyse with tools/calib_report.py)",
+             len(captured), corners_file)
 
     rms, K, dist = calibrate(captured, board_points(*pattern, args.square_mm / 1000.0), size)
     log.info("RMS reprojection error: %.3f px over %d views", rms, len(captured))
