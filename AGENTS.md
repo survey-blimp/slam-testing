@@ -274,7 +274,8 @@ python run.py --source path\to\tum_sequence      # image folder with rgb.txt
 **`source.py`:**
 - Webcams open with `cv2.VideoCapture(index, cv2.CAP_DSHOW)`, falling back to `CAP_MSMF`.
 - Request the configured resolution (default 640×480) and verify what the camera actually delivers.
-- Try to disable autofocus and auto-exposure (`CAP_PROP_AUTOFOCUS`, `CAP_PROP_AUTO_EXPOSURE`). Many webcams ignore these, so log whether each request took effect.
+- Try to disable autofocus (`CAP_PROP_AUTOFOCUS`). Many webcams ignore this, so log whether the request took effect.
+- Auto-exposure (`CAP_PROP_AUTO_EXPOSURE`) is explicitly switched **on** by default (changed with the owner's approval). Locking it is optional through config. The camera keeps the mode after the program exits, and manual exposure left the owner's laptop webcam near-black, so if it is locked, switch it back to auto on close.
 - Timestamps come from `time.perf_counter()` for live input and from file timestamps for datasets.
 
 **`tools/calibrate.py`:**

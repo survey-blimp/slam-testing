@@ -106,7 +106,9 @@ This writes `desk.mp4` and `desk.timestamps.txt`. Running `run.py --source recor
 - **Move slowly and smoothly**, especially when turning. Webcams have rolling shutters and motion blur.
 - **Keep the lighting steady** and aim at texture: desks, shelves, posters. Avoid blank walls, windows and moving people.
 - **If tracking is lost**, go back to a view you have already mapped and hold still; relocalization tries every keyframe. If the map is still tiny (under 5 keyframes) and you stay lost for more than 30 frames, the map resets and initialization starts over. `R` resets at any time.
-- **Locking autofocus and auto-exposure** is requested at start-up. Many webcams ignore it, and the log says which requests took effect. The built-in webcam on this machine ignored both.
+- **Autofocus lock** is requested at start-up. Many webcams ignore it, and the log says whether it took effect. The built-in webcam on this machine doesn't support it (it is probably fixed-focus).
+- **Auto-exposure is switched on** at start-up (`source.disable_auto_exposure: false`). Locking it puts the camera in manual mode at the driver's default exposure, which on the Legion 5 webcam is almost black indoors. The camera also *remembers* the mode after the program exits. If you lock it anyway, minislam switches auto back on when it closes. If the image is ever dark from an earlier run, just start minislam (or open and close the Windows Camera app).
+- **Turn off Windows Studio Effects** (Settings → Bluetooth & devices → Cameras → your camera, or the *Studio effects* tile in Quick Settings). *Automatic framing* digitally crops and zooms to follow faces, which changes the focal length and image centre from frame to frame and breaks tracking. *Background blur* removes background features, and *eye contact* warps the image. These effects run inside the camera driver, so OpenCV sees them too. Recalibrate after turning them off.
 
 ## Monocular scale
 

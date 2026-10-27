@@ -7,7 +7,8 @@ source:
   height: 480                 # requested capture height (px)
   fps: 30                     # requested webcam frame rate
   disable_autofocus: true     # ask the webcam to lock focus (focus changes alter the intrinsics)
-  disable_auto_exposure: true # ask the webcam to lock exposure (keeps descriptors stable)
+  disable_auto_exposure: false # true = lock exposure in manual mode (often far too dark on laptop webcams);
+                               # false = explicitly switch auto-exposure on, which also repairs a camera left in manual
 
 camera:
   uncalibrated_hfov_deg: 70.0 # horizontal FOV assumed when no camera.yaml exists: fx = W / (2 tan(HFOV/2))

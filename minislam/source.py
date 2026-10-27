@@ -5,9 +5,13 @@ and returns ``None`` when it runs out of frames.
 
   * Webcam: opened with DirectShow (``CAP_DSHOW``), falling back to Media
     Foundation (``CAP_MSMF``). Timestamps come from ``time.perf_counter()``.
-    We request a resolution, then check what the camera actually delivers,
-    and try to lock autofocus / auto-exposure (many webcams ignore this, so
-    we log whether each request took effect).
+    We request a resolution, then check what the camera actually delivers.
+    Autofocus can be locked (many webcams ignore this; we log the result).
+    Auto-exposure is explicitly switched **on** by default: the camera
+    remembers the mode after the program exits, so a camera that an earlier
+    run left in manual exposure comes back near-black until something turns
+    auto back on. If exposure is locked (``disable_auto_exposure: true``),
+    ``close()`` switches auto-exposure back on for the same reason.
   * Video file: timestamps come from a ``<video>.timestamps.txt`` written by
     ``tools/record.py`` if present, otherwise from the container's clock.
   * Image folder: a TUM RGB-D sequence with ``rgb.txt`` (``timestamp path``
@@ -30,6 +34,10 @@ from minislam.config import SourceConfig
 log = logging.getLogger(__name__)
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp"}
+
+# OpenCV's DirectShow/V4L convention for CAP_PROP_AUTO_EXPOSURE (not tunables).
+AUTO_EXPOSURE_MANUAL = 0.25
+AUTO_EXPOSURE_AUTO = 0.75
 
 
 class FrameSource(Protocol):
@@ -58,9 +66,11 @@ class WebcamSource:
         self.cap.set(cv2.CAP_PROP_FPS, cfg.fps)
         if cfg.disable_autofocus:
             self._request(cv2.CAP_PROP_AUTOFOCUS, 0, "autofocus off")
-        if cfg.disable_auto_exposure:
-            # DirectShow/V4L convention: 0.25 = manual exposure, 0.75 = auto.
-            self._request(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25, "auto-exposure off")
+        self.exposure_locked = cfg.disable_auto_exposure
+        if self.exposure_locked:
+            self._request(cv2.CAP_PROP_AUTO_EXPOSURE, AUTO_EXPOSURE_MANUAL, "auto-exposure off")
+        else:
+            self._request(cv2.CAP_PROP_AUTO_EXPOSURE, AUTO_EXPOSURE_AUTO, "auto-exposure on")
 
         ok, img = self.cap.read()
         if not ok:
@@ -75,9 +85,15 @@ class WebcamSource:
     def _request(self, prop: int, value: float, what: str) -> None:
         accepted = self.cap.set(prop, value)
         actual = self.cap.get(prop)
-        took = accepted and abs(actual - value) < 1e-3
-        log.info("Webcam request '%s': %s (driver reports %s)", what,
-                 "took effect" if took else "IGNORED", actual)
+        if not accepted:
+            result = "IGNORED"
+        elif actual == -1:  # DirectShow often accepts a setting but cannot read it back
+            result = "accepted (driver cannot report the value)"
+        elif abs(actual - value) < 1e-3:
+            result = "took effect"
+        else:
+            result = f"accepted but driver reports {actual}"
+        log.info("Webcam request '%s': %s", what, result)
 
     def read(self) -> tuple[float, np.ndarray] | None:
         ok, img = self.cap.read()
@@ -86,6 +102,10 @@ class WebcamSource:
         return time.perf_counter(), img
 
     def close(self) -> None:
+        if self.exposure_locked:
+            # The camera keeps the manual mode after we exit; hand it back in auto.
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, AUTO_EXPOSURE_AUTO)
+            log.info("Webcam: auto-exposure switched back on")
         self.cap.release()
 
 
