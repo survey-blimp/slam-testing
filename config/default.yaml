@@ -81,3 +81,14 @@ local_mapping:
   triangulation_max_distance: 50 # max Hamming distance for triangulation matches
   triangulation_ratio: 0.7    # ratio test for triangulation matches (stricter: only the epipolar line constrains them)
   local_ba_neighbors: 10      # covisible keyframes optimized together with the new keyframe
+
+relocalization:
+  ratio: 0.75                 # ratio test for brute-force matching against a keyframe (ORB-SLAM3 BoW step uses 0.75)
+  max_distance: 50            # max Hamming distance of a relocalization match
+  min_matches: 15             # skip a keyframe with fewer matches / PnP inliers than this (ORB-SLAM3)
+  pnp_reprojection_px: 4.0    # solvePnPRansac inlier threshold (px)
+  pnp_iterations: 300         # solvePnPRansac iterations
+  pnp_confidence: 0.99        # solvePnPRansac confidence
+  min_inliers: 30             # inliers after pose optimization needed to go back to OK
+  reset_max_keyframes: 5      # with fewer keyframes than this ...
+  reset_after_lost_frames: 30 # ... and lost for more frames than this, reset the whole map

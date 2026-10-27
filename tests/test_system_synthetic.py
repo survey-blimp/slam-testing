@@ -45,6 +45,31 @@ def test_full_system_on_synthetic_room():
     assert ate < 0.02 * path, f"ATE {ate:.4f} m over a {path:.2f} m path"
 
 
+def test_relocalization_after_covering_the_lens():
+    room = TexturedRoom(seed=2)
+    poses = room_trajectory(200)
+    camera = PinholeCamera.from_intrinsics(WIDTH, HEIGHT, FX, FY, CX, CY)
+    system = SlamSystem(CFG, camera)
+    t = 0
+    for T in poses[:70]:
+        system.process(t / 30.0, room.render(T))
+        t += 1
+    assert system.tracker.state.value == "OK"
+    n_kfs = len(system.map.keyframes)
+
+    dark = np.full((HEIGHT, WIDTH), 12, np.uint8)  # lens covered
+    for _ in range(10):
+        snap = system.process(t / 30.0, dark)
+        t += 1
+    assert snap.state == "LOST"
+
+    # Uncover while looking at an already mapped part of the room.
+    states = [system.process((t + k) / 30.0, room.render(T)).state for k, T in enumerate(poses[40:55])]
+    assert "OK" in states[:5], f"did not relocalize: {states}"
+    assert states[-1] == "OK"
+    assert len(system.map.keyframes) >= n_kfs  # same map, not a reset
+
+
 def test_save_writes_tum_and_ply(tmp_path):
     room = TexturedRoom(seed=1)
     camera = PinholeCamera.from_intrinsics(WIDTH, HEIGHT, FX, FY, CX, CY)

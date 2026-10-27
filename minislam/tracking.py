@@ -23,10 +23,19 @@ States: ``NO_IMAGES -> NOT_INITIALIZED -> OK <-> LOST``.
       5. **Success** if enough inliers remain, else LOST.
       6. **Keyframe decision**: insert a keyframe when tracking is getting
          weaker than at the reference keyframe, or after a while anyway.
+         Local mapping then runs synchronously on it (see local_mapping.py).
+
+  * LOST: **relocalize** every frame. For each keyframe (newest first),
+    brute-force match descriptors against its map points, estimate the pose
+    with PnP + RANSAC, refine with pose-only optimization, and accept with
+    enough inliers. If the map is still tiny and tracking stays lost for a
+    while, the whole map is reset and initialization starts over.
 
 ORB-SLAM3 equivalent: ``Tracking.cc`` (``Track``, ``TrackWithMotionModel``,
 ``TrackReferenceKeyFrame``, ``TrackLocalMap``, ``UpdateLocalKeyFrames``,
-``SearchLocalPoints``, ``NeedNewKeyFrame``).
+``SearchLocalPoints``, ``NeedNewKeyFrame``, ``Relocalization``). ORB-SLAM3
+finds relocalization candidates with a bag-of-words query instead of
+trying every keyframe.
 """
 
 import logging
@@ -34,6 +43,7 @@ import time
 from collections import Counter
 from enum import Enum
 
+import cv2
 import numpy as np
 
 from minislam import geometry
@@ -74,6 +84,7 @@ class Tracker:
         self.velocity: np.ndarray | None = None  # T_last T_prev^-1
         self.reference_kf: KeyFrame | None = None
         self.last_kf_frame_id = 0
+        self.lost_frames = 0
         self.local_keyframes: list[KeyFrame] = []
         self.local_map_points: list[MapPoint] = []
         self.message = ""
@@ -94,6 +105,8 @@ class Tracker:
             self._initialize(frame)
         elif self.state == TrackingState.OK:
             self._track(frame)
+        elif self.state == TrackingState.LOST:
+            self._handle_lost(frame)
         self.timings["track"] = 1000 * (time.perf_counter() - t0) - self.timings["local_map"]
         self.last_frame = frame
 
@@ -270,6 +283,78 @@ class Tracker:
             frame.map_points[i].n_found += 1
         return n_in
 
+    # ------------------------------------------------------- relocalization
+
+    def _handle_lost(self, frame: Frame) -> None:
+        r = self.cfg.relocalization
+        self.lost_frames += 1
+        if len(self.map.keyframes) < r.reset_max_keyframes and self.lost_frames > r.reset_after_lost_frames:
+            log.warning("Lost for %d frames with only %d keyframes: resetting the map",
+                        self.lost_frames, len(self.map.keyframes))
+            self.map.clear()
+            self.reset()
+            self.state = TrackingState.NOT_INITIALIZED
+            self.message = "map reset (lost too long with a small map)"
+            return
+        if self._relocalize(frame):
+            log.info("Relocalized at frame %d after %d lost frames", frame.id, self.lost_frames)
+            self.state = TrackingState.OK
+            self.message = "relocalized"
+            self.lost_frames = 0
+            self.velocity = None
+            self.last_kf_frame_id = frame.id  # no keyframe right after relocalization
+            self._record_pose(frame)
+        else:
+            self.message = f"LOST for {self.lost_frames} frames: return to a mapped view"
+
+    def _relocalize(self, frame: Frame) -> bool:
+        """Find the pose against any keyframe: brute force + PnP RANSAC + pose optimization.
+
+        Keyframes are tried newest first; the first that gives enough inliers wins.
+        """
+        r = self.cfg.relocalization
+        o = self.cfg.optimizer
+        if frame.n_features < r.min_matches:
+            return False
+        for kf in reversed(self.map.keyframes):
+            idx = np.array([i for i, mp in enumerate(kf.map_points)
+                            if mp is not None and not mp.is_bad], dtype=int)
+            if len(idx) < r.min_matches:
+                continue
+            pairs = match_brute_force(frame.descriptors, kf.descriptors[idx], r.ratio,
+                                      r.max_distance, cross_check=False)
+            if len(pairs) < r.min_matches:
+                continue
+            mps = [kf.map_points[idx[j]] for j in pairs[:, 1]]
+            obj = np.array([mp.p_w for mp in mps])
+            img = frame.keypoints_un[pairs[:, 0]]
+            # BLACKBOX: cv2.solvePnPRansac estimates the camera pose from 3D-2D
+            # correspondences. Inside a RANSAC loop it solves a minimal problem
+            # (here EPnP on 4+ points: express the points in a basis of 4 virtual
+            # control points and solve for those in the camera frame by SVD),
+            # counts correspondences reprojecting within the threshold, and
+            # refines the best pose on its inliers. By hand: P3P/EPnP + RANSAC.
+            ok, rvec, tvec, inliers = cv2.solvePnPRansac(
+                obj, img, self.K, None, iterationsCount=r.pnp_iterations,
+                reprojectionError=r.pnp_reprojection_px, confidence=r.pnp_confidence,
+                flags=cv2.SOLVEPNP_EPNP)
+            if not ok or inliers is None or len(inliers) < r.min_matches:
+                continue
+            frame.clear_matches()
+            for k in inliers.ravel():
+                frame.map_points[pairs[k, 0]] = mps[k]
+            frame.T_cw = geometry.make_T(cv2.Rodrigues(rvec)[0], tvec.ravel())
+            n_in = optimize_pose(frame, self.K, o.chi2_2dof, o.pose_rounds, o.pose_max_nfev)
+            if n_in < r.min_inliers:
+                continue
+            self._drop_outliers(frame)
+            self.reference_kf = kf
+            if self._track_local_map(frame) >= r.min_inliers:
+                return True
+        frame.clear_matches()
+        frame.T_cw = None
+        return False
+
     # ------------------------------------------------------------ keyframes
 
     def need_new_keyframe(self, frame: Frame) -> bool:
@@ -278,7 +363,10 @@ class Tracker:
         if since < c.min_frames_between_kf:
             return False
         n_in = frame.n_tracked_inliers()
-        ref_tracked = self.reference_kf.tracked_map_points(c.kf_ref_min_obs)
+        # A point cannot be seen by more keyframes than exist: right after
+        # initialization (2 keyframes) require only 2, as ORB-SLAM does.
+        min_obs = min(c.kf_ref_min_obs, len(self.map.keyframes))
+        ref_tracked = self.reference_kf.tracked_map_points(min_obs)
         weak = n_in < c.kf_inlier_ratio * ref_tracked and n_in >= c.kf_min_inliers
         return weak or since >= c.max_frames_between_kf
 

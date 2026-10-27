@@ -101,6 +101,19 @@ class TrackingConfig:
 
 
 @dataclass(frozen=True)
+class RelocalizationConfig:
+    ratio: float
+    max_distance: int
+    min_matches: int
+    pnp_reprojection_px: float
+    pnp_iterations: int
+    pnp_confidence: float
+    min_inliers: int
+    reset_max_keyframes: int
+    reset_after_lost_frames: int
+
+
+@dataclass(frozen=True)
 class LocalMappingConfig:
     cull_min_found_ratio: float
     cull_min_observations: int
@@ -130,6 +143,7 @@ class Config:
     map: MapConfig
     tracking: TrackingConfig
     local_mapping: LocalMappingConfig
+    relocalization: RelocalizationConfig
 
 
 def _convert(value: Any, target: type, where: str) -> Any:
