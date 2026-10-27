@@ -41,6 +41,7 @@ from minislam.camera import PinholeCamera
 from minislam.config import Config
 from minislam.frame import Frame
 from minislam.initializer import Initializer
+from minislam.local_mapping import LocalMapper
 from minislam.map import KeyFrame, Map, MapPoint
 from minislam.matcher import match_brute_force, search_by_projection
 from minislam.optimizer import optimize_pose
@@ -62,11 +63,13 @@ class Tracker:
         self.K = camera.K
         self.map = map_
         self.initializer = Initializer(cfg, camera.K)
+        self.local_mapper = LocalMapper(cfg, camera.K, map_)
         self.reset()
 
     def reset(self) -> None:
         self.state = TrackingState.NO_IMAGES
         self.initializer.reset()
+        self.local_mapper.reset()
         self.last_frame: Frame | None = None
         self.velocity: np.ndarray | None = None  # T_last T_prev^-1
         self.reference_kf: KeyFrame | None = None
@@ -128,6 +131,8 @@ class Tracker:
         self.message = ""
         self.velocity = frame.T_cw @ geometry.se3_inverse(last.T_cw)
         self._record_pose(frame)
+        if self.need_new_keyframe(frame):
+            self._insert_keyframe(frame)
 
     def _track_last_frame(self, frame: Frame, last: Frame) -> bool:
         """Steps 1-3: predict, match the last frame's points by projection, optimize."""
@@ -276,6 +281,15 @@ class Tracker:
         ref_tracked = self.reference_kf.tracked_map_points(c.kf_ref_min_obs)
         weak = n_in < c.kf_inlier_ratio * ref_tracked and n_in >= c.kf_min_inliers
         return weak or since >= c.max_frames_between_kf
+
+    def _insert_keyframe(self, frame: Frame) -> None:
+        """Promote ``frame`` and run local mapping on it (synchronously, see local_mapping.py)."""
+        t0 = time.perf_counter()
+        kf = KeyFrame.from_frame(frame, self.map.new_keyframe_id())
+        self.local_mapper.process_keyframe(kf)
+        self.reference_kf = kf
+        self.last_kf_frame_id = frame.id
+        self.timings["local_map"] = 1000 * (time.perf_counter() - t0)
 
     # ------------------------------------------------------------ trajectory
 

@@ -68,4 +68,16 @@ tracking:
   max_frames_between_kf: 30   # always insert a keyframe after this many frames
   kf_inlier_ratio: 0.9        # new keyframe if inliers < ratio * points tracked by the reference keyframe (ORB-SLAM3 mono)
   kf_min_inliers: 15          # ...but only if at least this many inliers remain (ORB-SLAM3)
-  kf_ref_min_obs: 2           # a reference-KF point counts as "tracked" if seen by this many keyframes
+  kf_ref_min_obs: 3           # a reference-KF point counts as "tracked" if seen by this many keyframes (ORB-SLAM3 nMinObs)
+
+local_mapping:
+  cull_min_found_ratio: 0.25  # remove a recent point found in < 25% of frames where it should be visible (ORB-SLAM3)
+  cull_min_observations: 2    # ...or seen by fewer keyframes than this; also the post-BA minimum
+  cull_keyframe_age: 2        # keyframes after creation before the observation-count rule applies (ORB-SLAM3)
+  recent_point_maturity: 3    # keyframes after creation when a point stops being "recent" (ORB-SLAM3)
+  triangulation_neighbors: 10 # covisible keyframes to triangulate new points against
+  min_baseline_depth_ratio: 0.01 # skip a keyframe pair if baseline / median depth is below this (ORB-SLAM3)
+  epipolar_sigma_factor: 3.0  # candidate must lie within this many sigma (px) of the epipolar line
+  triangulation_max_distance: 50 # max Hamming distance for triangulation matches
+  triangulation_ratio: 0.7    # ratio test for triangulation matches (stricter: only the epipolar line constrains them)
+  local_ba_neighbors: 10      # covisible keyframes optimized together with the new keyframe

@@ -101,6 +101,20 @@ class TrackingConfig:
 
 
 @dataclass(frozen=True)
+class LocalMappingConfig:
+    cull_min_found_ratio: float
+    cull_min_observations: int
+    cull_keyframe_age: int
+    recent_point_maturity: int
+    triangulation_neighbors: int
+    min_baseline_depth_ratio: float
+    epipolar_sigma_factor: float
+    triangulation_max_distance: int
+    triangulation_ratio: float
+    local_ba_neighbors: int
+
+
+@dataclass(frozen=True)
 class MapConfig:
     min_covisibility_weight: int
 
@@ -115,6 +129,7 @@ class Config:
     optimizer: OptimizerConfig
     map: MapConfig
     tracking: TrackingConfig
+    local_mapping: LocalMappingConfig
 
 
 def _convert(value: Any, target: type, where: str) -> Any:

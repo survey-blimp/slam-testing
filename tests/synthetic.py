@@ -101,13 +101,18 @@ def two_view_problem(rng: np.random.Generator, n: int = 300, noise_px: float = 0
     return TwoViewProblem(T_cw1, T_cw2, p_w, uv1, uv2)
 
 
-def orbit_poses(n: int, radius: float = 0.6) -> list[np.ndarray]:
-    """``n`` cameras on an arc, all looking at the center of ``random_points``."""
+def orbit_poses(n: int, radius: float = 4.0, span_deg: float = 30.0) -> list[np.ndarray]:
+    """``n`` cameras on an arc around (0, 0, radius), all looking at it.
+
+    The first camera of a symmetric arc is not at the origin, so callers
+    that need camera 0 at the world origin should re-express the poses.
+    """
+    target = np.array([0.0, 0.0, radius])
     poses = []
     for i in range(n):
-        a = np.radians(-15 + 30 * i / max(n - 1, 1))
-        C = np.array([radius * np.sin(a), 0.1 * np.sin(3 * a), 4.0 - 4.0 * np.cos(a)])
-        poses.append(look_at(C, np.array([0.0, 0.0, 4.0])))
+        a = np.radians(-span_deg / 2 + span_deg * i / max(n - 1, 1))
+        C = target + radius * np.array([np.sin(a), 0.03 * np.sin(3 * a), -np.cos(a)])
+        poses.append(look_at(C, target))
     return poses
 
 
