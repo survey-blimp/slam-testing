@@ -47,10 +47,23 @@ class GuiConfig:
 
 
 @dataclass(frozen=True)
+class FeatureConfig:
+    n_features: int
+    scale_factor: float
+    n_levels: int
+    fast_threshold: int
+    fast_threshold_low: int
+    cell_size: int
+    edge_threshold: int
+    patch_size: int
+
+
+@dataclass(frozen=True)
 class Config:
     source: SourceConfig
     camera: CameraConfig
     gui: GuiConfig
+    features: FeatureConfig
 
 
 def _convert(value: Any, target: type, where: str) -> Any:

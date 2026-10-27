@@ -20,3 +20,13 @@ gui:
   show_track_lines: false     # initial state of the 'T' toggle (track lines in the video)
   follow_camera: true         # initial state of the 'F' toggle (3D view follows the camera)
   output_dir: output          # where 'S' and --headless write output/<timestamp>/
+
+features:
+  n_features: 1000            # total ORB features per frame, split over pyramid levels (ORB-SLAM3)
+  scale_factor: 1.2           # scale ratio between pyramid levels; keypoint sigma = scale_factor^octave (ORB-SLAM3)
+  n_levels: 8                 # number of pyramid levels (ORB-SLAM3)
+  fast_threshold: 20          # FAST intensity threshold for a "strong" corner (ORB-SLAM3 iniThFAST)
+  fast_threshold_low: 7       # fallback threshold used in cells with no strong corner (ORB-SLAM3 minThFAST)
+  cell_size: 30               # grid cell size (px) per pyramid level for spreading features
+  edge_threshold: 19          # no keypoints closer than this to the border; must exceed patch radius (ORB-SLAM3 EDGE_THRESHOLD)
+  patch_size: 31              # ORB descriptor patch size (px) (ORB-SLAM3 PATCH_SIZE)

@@ -42,6 +42,7 @@ def draw_overlay(snap: Snapshot, show_track_lines: bool) -> np.ndarray:
         elif status == OUTLIER:
             cv2.circle(img, c, 2 + int(octave), RED, 1, cv2.LINE_AA)
         else:
+            cv2.circle(img, c, 2, (40, 40, 40), -1)  # dark ring keeps the dot visible on grey texture
             cv2.circle(img, c, 1, GREY, -1)
 
     _draw_hud(img, snap)
