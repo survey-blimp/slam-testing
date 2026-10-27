@@ -36,7 +36,7 @@ Without calibration minislam guesses the intrinsics from a 70° horizontal field
 
 1. Print a checkerboard. The default is **9×6 inner corners** (10×7 squares) with **25 mm** squares. Measure a printed square with a ruler; printers scale.
 2. Tape it to something flat and rigid.
-3. Run the calibration tool and show the board to the camera from many angles: tilted, close, far, and in the corners of the image. A view is captured automatically whenever the board is detected in a new enough position. It stops after 20 views.
+3. Run the calibration tool and show the board to the camera from many angles: tilted, close, far, and in the corners of the image. A view is captured automatically whenever the board is detected in a new enough position and held still (frames where it moved are rejected as motion-blurred; the overlay shows "hold still"). It keeps capturing until you press **Enter** in the video window, which works once the minimum of 20 views (`--views`) is reached. Q / Esc aborts.
 
 ```bash
 python tools/calibrate.py --cols 9 --rows 6 --square-mm 25
@@ -44,9 +44,20 @@ python tools/calibrate.py --cols 9 --rows 6 --square-mm 25
 
 This writes `config/camera.yaml` and prints the RMS reprojection error. Below about 0.5 px is good; above 1.0 px it warns (usual causes are blur, a board that isn't flat, or the wrong square size or corner count). It captures at the resolution in `config/default.yaml` (`source.width`/`height`, 640×480 by default), the same resolution SLAM uses. Calibrate again whenever you change it.
 
-For the drone camera add `--drone` (laptop on the drone's Wi-Fi). The board's square size only sets the scale of the board poses inside the solver; fx, fy, cx, cy and the distortion do not depend on it, so a board shown on a monitor works with any measured size (the corner count must still match `--cols`/`--rows`).
+For the drone camera add `--drone` (laptop on the drone's Wi-Fi). No printer? `tools/checkerboard_9x6.png` is a 9×6 inner-corner board to show full screen on a monitor at 100% zoom with the brightness turned down; measure one square with a ruler and pass it as `--square-mm`. Hold the camera about 1 m away (the drone camera is narrow, about 34°) and tilt it a lot. The board's square size only sets the scale of the board poses inside the solver; fx, fy, cx, cy and the distortion do not depend on it, so a board shown on a monitor works with any measured size (the corner count must still match `--cols`/`--rows`).
 
 You can also calibrate from a folder of saved photos with `--images path\to\folder`.
+
+### Checking a calibration
+
+Every calibration saves the detected corners to `data/calib_corners_<time>.npz`. `tools/calib_report.py` analyses them:
+
+```bash
+python tools/calib_report.py data\calib_corners_<time>.npz
+python tools/calib_report.py data\calib_corners_<time>.npz --drop-worst 2 --fix-k3 --output config\camera_new.yaml
+```
+
+It prints the RMS error of every view (worst first), each parameter with its standard deviation, and the correlation matrix, flagging pairs above ±0.95. A low overall RMS can hide a few blurred views (drop them with `--drop-worst`) or distortion terms that cancel each other: k2 and k3 strongly anti-correlated with huge values means k3 is not determined by the data, so refit with `--fix-k3`. The calibration for the Quadbox drone camera, made this way, is `config/camera_drone_quadbox.yaml`.
 
 ## Run
 
@@ -57,6 +68,7 @@ python run.py --source 0
 | Command | Input |
 |---|---|
 | `python run.py --source 0` | webcam index 0 |
+| `python run.py --source drone --camera config\camera_drone_quadbox.yaml` | the Wi-Fi drone's live camera (see below) |
 | `python run.py --source recordings\desk.mp4` | a video file (made with `tools/record.py`, or any video) |
 | `python run.py --source data\rgbd_dataset_freiburg1_xyz` | an image folder with a TUM-style `rgb.txt` |
 
@@ -222,6 +234,7 @@ Profiling (`python -m cProfile`) shows local BA as the hot spot, at about 60% of
 | [minislam/config.py](minislam/config.py) | YAML → validated dataclasses | `Settings.cc` |
 | [minislam/camera.py](minislam/camera.py) | pinhole model, distortion, keypoint undistortion | `CameraModels/Pinhole.cc` |
 | [minislam/source.py](minislam/source.py) | webcam, video file and image-folder input | the example programs |
+| [minislam/drone.py](minislam/drone.py) | Wi-Fi drone camera input (UDP MJPEG): keep-alive, frame reassembly, unscrambling, newest-frame-wins | the example programs |
 | [minislam/features.py](minislam/features.py) | ORB with pyramid, grid distribution, orientation | `ORBextractor.cc` |
 | [minislam/frame.py](minislam/frame.py) | per-image features, pose, associations | `Frame.cc` |
 | [minislam/map.py](minislam/map.py) | MapPoint, KeyFrame, Map, covisibility | `MapPoint.cc`, `KeyFrame.cc`, `Map.cc` |
@@ -239,4 +252,14 @@ Every tunable number is in [config/default.yaml](config/default.yaml), each with
 
 ## Drone camera source
 
-`python run.py --source drone` reads the live video of the Quadbox / "JX WiFi" toy drone (MJPEG over UDP, protocol in `minislam/drone.py`). Join the laptop to the drone's Wi-Fi first; the `drone:` section of `config/default.yaml` holds the address and ports. Only the keep-alive hello is sent, never flight controls. The camera is 640x480 and fixed-focus; calibrate it with `tools/calibrate.py` (which still uses a webcam index today) or run uncalibrated with the 70 degree fallback.
+`python run.py --source drone --camera config\camera_drone_quadbox.yaml` reads the live video of the Quadbox / "JX WiFi" toy drone: MJPEG over UDP, protocol in `minislam/drone.py` (reverse-engineered in the separate drone-hacking repo and copied here so this repo is self-contained).
+
+1. Join the laptop to the drone's Wi-Fi (`JX WiFi-058339`) and power the drone on. Take the props off if you are only after video.
+2. Run the command above. If no frame arrives within 5 s it exits with a "No video from drone" error (wrong Wi-Fi, or another program such as the drone viewer is using the stream).
+
+Notes:
+- Only the keep-alive hello is ever sent, never flight controls. The drone stops streaming about 4 s after the last hello, so the source sends one every second.
+- The drone inverts one byte of every JPEG; `drone.py` flips it back. Frames are decoded with OpenCV and undecodable ones are skipped. A frame that decodes with a corrupt colour band is not detected (the drone-hacking repo uses `simplejpeg` strict decoding for that; it is not a minislam dependency).
+- The source keeps only the newest complete frame, so SLAM never works through a backlog; about 14 fps arrive. Timestamps are `time.perf_counter()` at frame completion.
+- The camera is fixed-focus, 640×480, with a narrow field of view (about 34°). Address, ports, keep-alive period and read timeout are in the `drone:` section of `config/default.yaml`.
+- Without `--camera` the 70° uncalibrated fallback is used, which is far too wide for this camera.

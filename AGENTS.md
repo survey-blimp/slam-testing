@@ -61,11 +61,13 @@ minislam/
   config/
     default.yaml           # all SLAM + GUI parameters
     camera.yaml            # produced by tools/calibrate.py
+    camera_drone_quadbox.yaml  # calibration of the Quadbox drone camera
   minislam/
     __init__.py
     config.py              # load/validate YAML into dataclasses
     camera.py              # PinholeCamera: K, distortion, project, undistort_points
     source.py              # FrameSource: webcam / video file / image folder (+ timestamps)
+    drone.py               # DroneSource: Wi-Fi drone camera (UDP MJPEG), selected with --source drone
     features.py            # ORB extraction with grid distribution, per-octave sigma
     frame.py               # Frame: keypoints, descriptors, pose estimate, map-point associations
     map.py                 # MapPoint, KeyFrame, Map (incl. covisibility graph)
@@ -83,13 +85,16 @@ minislam/
       overlay.py           # draws landmarks/HUD onto the video frame
       map_view.py          # 3D points, keyframe frustums, trajectory
   tools/
-    calibrate.py           # checkerboard calibration -> config/camera.yaml
+    calibrate.py           # checkerboard calibration (webcam, --drone or --images) -> config/camera.yaml
+    calib_report.py        # parameter std devs / correlations / per-view errors from saved corners; refit
+    checkerboard_9x6.png   # board to show on a monitor when there is no printout
     record.py              # record webcam to video + timestamps for repeatable runs
   tests/
     test_geometry.py
     test_initializer.py
     test_tracking_pose.py
     test_bundle_adjustment.py
+    test_drone_source.py   # fake UDP drone: reassembly, unscrambling, DroneSource end to end
     synthetic.py           # synthetic scene/trajectory generator used by tests
 ```
 
@@ -278,12 +283,16 @@ python run.py --source path\to\tum_sequence      # image folder with rgb.txt
 - Auto-exposure (`CAP_PROP_AUTO_EXPOSURE`) is explicitly switched **on** by default (changed with the owner's approval). Locking it is optional through config. The camera keeps the mode after the program exits, and manual exposure left the owner's laptop webcam near-black, so if it is locked, switch it back to auto on close.
 - Timestamps come from `time.perf_counter()` for live input and from file timestamps for datasets.
 
+**`drone.py`** (added after v1, with the owner's approval): `--source drone` selects `DroneSource`, a live source for the Wi-Fi toy drone camera. A receiver thread sends the keep-alive hello (the only packet it ever sends), reassembles the UDP video chunks, undoes the drone's one-byte-per-frame inversion, and keeps only the newest frame; `read()` decodes it with OpenCV. Network settings live in the `drone:` config section. No new dependencies. The protocol is documented in the module docstring.
+
 **`tools/calibrate.py`:**
 - Takes a printed checkerboard; inner corners and square size come from command-line arguments, defaulting to 9×6 and 25 mm.
-- Shows the live feed, auto-captures a view when the board is detected and the pose differs enough from previous captures, and stops after 20 or more views.
+- Shows the live feed, auto-captures a view when the board is detected and the pose differs enough from previous captures, and keeps capturing until the owner presses Enter, which is accepted once 20 or more views (`--views`) exist. Only frames where the board is held still (mean corner shift under `--max-motion-px` since the previous frame) are captured, to reject motion blur. `--drone` uses the drone camera instead of a webcam, and the detected corners are saved to `data/calib_corners_<time>.npz`.
 - Runs `findChessboardCorners`, then `cornerSubPix`, then `calibrateCamera`.
 - Reports the RMS reprojection error (warn if above 1.0 px) and writes `config/camera.yaml`.
 - It must calibrate at the same resolution SLAM will use.
+
+**`tools/calib_report.py`:** reads the saved corners and reports per-view RMS, parameter standard deviations and the correlation matrix (from the Jacobian, poses marginalised by Schur complement), and can refit with `--fix-k3` and `--drop-worst N`. Use it to catch blurred views and distortion terms that the views do not determine.
 
 **Uncalibrated fallback:** if no `camera.yaml` exists, use `fx = fy = width / (2·tan(HFOV/2))` with an HFOV of 70° and zero distortion, and show a persistent warning in the HUD.
 
