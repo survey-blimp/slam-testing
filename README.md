@@ -44,6 +44,8 @@ python tools/calibrate.py --cols 9 --rows 6 --square-mm 25
 
 This writes `config/camera.yaml` and prints the RMS reprojection error. Below about 0.5 px is good; above 1.0 px it warns (usual causes are blur, a board that isn't flat, or the wrong square size or corner count). It captures at the resolution in `config/default.yaml` (`source.width`/`height`, 640×480 by default), the same resolution SLAM uses. Calibrate again whenever you change it.
 
+For the drone camera add `--drone` (laptop on the drone's Wi-Fi). The board's square size only sets the scale of the board poses inside the solver; fx, fy, cx, cy and the distortion do not depend on it, so a board shown on a monitor works with any measured size (the corner count must still match `--cols`/`--rows`).
+
 You can also calibrate from a folder of saved photos with `--images path\to\folder`.
 
 ## Run

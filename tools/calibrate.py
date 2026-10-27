@@ -4,6 +4,7 @@ Usage (print a checkerboard, measure one square):
 
     python tools/calibrate.py                       # webcam 0, 9x6 inner corners, 25 mm squares
     python tools/calibrate.py --cols 9 --rows 6 --square-mm 24.5 --camera-index 1
+    python tools/calibrate.py --drone               # Wi-Fi drone camera (laptop on the drone's Wi-Fi)
     python tools/calibrate.py --images path\\to\\saved_board_photos
 
 Live mode shows the camera feed. When the board is detected *and* its
@@ -38,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from minislam.camera import PinholeCamera  # noqa: E402
 from minislam.config import load_config  # noqa: E402
+from minislam.drone import DroneSource  # noqa: E402
 from minislam.source import IMAGE_SUFFIXES, WebcamSource  # noqa: E402
 
 log = logging.getLogger("calibrate")
@@ -52,6 +54,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--rows", type=int, default=6, help="inner corners per column")
     p.add_argument("--square-mm", type=float, default=25.0, help="checkerboard square size (mm)")
     p.add_argument("--camera-index", type=int, default=0)
+    p.add_argument("--drone", action="store_true",
+                   help="use the Wi-Fi drone camera (see the drone: section of the config) instead of a webcam")
     p.add_argument("--images", type=Path, default=None, help="calibrate from a folder of images instead")
     p.add_argument("--views", type=int, default=20, help="number of views to capture")
     p.add_argument("--min-motion-px", type=float, default=40.0,
@@ -102,7 +106,7 @@ def calibrate(image_points: list[np.ndarray], obj: np.ndarray,
 
 def capture_live(args: argparse.Namespace, pattern: tuple[int, int]) -> tuple[list[np.ndarray], tuple[int, int]]:
     cfg = load_config(args.config)
-    cam = WebcamSource(args.camera_index, cfg.source)
+    cam = DroneSource(cfg.drone) if args.drone else WebcamSource(args.camera_index, cfg.source)
     captured: list[np.ndarray] = []
     log.info("Show the board to the camera; views are captured automatically. Q / Esc aborts.")
     try:
