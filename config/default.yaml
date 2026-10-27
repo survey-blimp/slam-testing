@@ -30,3 +30,24 @@ features:
   cell_size: 30               # grid cell size (px) per pyramid level for spreading features
   edge_threshold: 19          # no keypoints closer than this to the border; must exceed patch radius (ORB-SLAM3 EDGE_THRESHOLD)
   patch_size: 31              # ORB descriptor patch size (px) (ORB-SLAM3 PATCH_SIZE)
+
+initializer:
+  min_features: 100           # a frame needs this many features to be a reference / candidate
+  min_matches: 100            # fewer reference<->current matches than this: keep waiting
+  reset_below_matches: 50     # fewer than this: the view changed too much, replace the reference
+  ratio: 0.8                  # Lowe ratio test: best < ratio * second-best Hamming distance
+  max_distance: 50            # max Hamming distance of an accepted match (ORB-SLAM3 TH_LOW)
+  ransac_prob: 0.999          # findEssentialMat RANSAC confidence
+  ransac_threshold_px: 1.0    # findEssentialMat inlier threshold (px)
+  min_parallax_deg: 1.0       # per-point parallax needed to keep a point, and the median needed to accept
+  min_points: 50              # triangulated points needed to accept the initialization
+
+optimizer:
+  chi2_2dof: 5.991            # chi-square 95% threshold, 2 DOF: outlier if ||r||^2 / sigma^2 above (ORB-SLAM3)
+  pose_rounds: 4              # pose-only optimization rounds with outlier re-classification (ORB-SLAM3)
+  pose_max_nfev: 10           # max residual evaluations per pose-only round
+  ba_max_nfev: 20             # max iterations (residual evaluations) of local bundle adjustment
+  init_ba_max_nfev: 20        # same for the full BA right after initialization
+
+map:
+  min_covisibility_weight: 15 # shared map points needed for a covisibility edge (ORB-SLAM3)

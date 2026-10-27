@@ -59,11 +59,41 @@ class FeatureConfig:
 
 
 @dataclass(frozen=True)
+class InitializerConfig:
+    min_features: int
+    min_matches: int
+    reset_below_matches: int
+    ratio: float
+    max_distance: int
+    ransac_prob: float
+    ransac_threshold_px: float
+    min_parallax_deg: float
+    min_points: int
+
+
+@dataclass(frozen=True)
+class OptimizerConfig:
+    chi2_2dof: float
+    pose_rounds: int
+    pose_max_nfev: int
+    ba_max_nfev: int
+    init_ba_max_nfev: int
+
+
+@dataclass(frozen=True)
+class MapConfig:
+    min_covisibility_weight: int
+
+
+@dataclass(frozen=True)
 class Config:
     source: SourceConfig
     camera: CameraConfig
     gui: GuiConfig
     features: FeatureConfig
+    initializer: InitializerConfig
+    optimizer: OptimizerConfig
+    map: MapConfig
 
 
 def _convert(value: Any, target: type, where: str) -> Any:
