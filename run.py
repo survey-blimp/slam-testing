@@ -1,6 +1,7 @@
 """minislam entry point.
 
     python run.py --source 0                          # webcam index
+    python run.py --source drone                      # Wi-Fi drone camera (laptop joined to the drone's Wi-Fi)
     python run.py --source path\\to\\video.mp4          # video file
     python run.py --source path\\to\\tum_sequence       # image folder with rgb.txt
                   --camera config\\camera.yaml --config config\\default.yaml
@@ -27,7 +28,7 @@ log = logging.getLogger("minislam")
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="minislam: minimal monocular ORB-SLAM")
-    p.add_argument("--source", default="0", help="webcam index, video file, or image folder")
+    p.add_argument("--source", default="0", help="webcam index, 'drone', video file, or image folder")
     p.add_argument("--camera", type=Path, default=Path("config/camera.yaml"),
                    help="calibration file from tools/calibrate.py")
     p.add_argument("--config", type=Path, default=Path("config/default.yaml"))
@@ -66,7 +67,7 @@ def main() -> int:
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
                         datefmt="%H:%M:%S")
     cfg = load_config(args.config)
-    source = open_source(args.source, cfg.source)
+    source = open_source(args.source, cfg.source, cfg.drone)
     camera = load_camera(args.camera, source.width, source.height, cfg.camera.uncalibrated_hfov_deg)
     system = SlamSystem(cfg, camera)
 

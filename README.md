@@ -234,3 +234,7 @@ Profiling (`python -m cProfile`) shows local BA as the hot spot, at about 60% of
 | [minislam/gui/](minislam/gui/) | Qt window, worker thread, overlay, 3D view | `Viewer.cc`, `FrameDrawer.cc`, `MapDrawer.cc` |
 
 Every tunable number is in [config/default.yaml](config/default.yaml), each with a comment.
+
+## Drone camera source
+
+`python run.py --source drone` reads the live video of the Quadbox / "JX WiFi" toy drone (MJPEG over UDP, protocol in `minislam/drone.py`). Join the laptop to the drone's Wi-Fi first; the `drone:` section of `config/default.yaml` holds the address and ports. Only the keep-alive hello is sent, never flight controls. The camera is 640x480 and fixed-focus; calibrate it with `tools/calibrate.py` (which still uses a webcam index today) or run uncalibrated with the 70 degree fallback.
