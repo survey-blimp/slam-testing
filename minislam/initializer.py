@@ -76,7 +76,9 @@ def reconstruct_two_view(uv1: np.ndarray, uv2: np.ndarray, sigma2_1: np.ndarray,
     _, R, t, pose_mask = cv2.recoverPose(E, uv1, uv2, K, mask=mask.copy())
     inliers = np.nonzero(pose_mask.ravel() > 0)[0]
     if len(inliers) < cfg.min_points:
-        return None, f"too few essential-matrix inliers ({len(inliers)})"
+        # recoverPose also drops points further than 50 baselines away, so a
+        # tiny translation shows up here as (almost) zero inliers.
+        return None, f"too few essential-matrix inliers ({len(inliers)}), translate the camera more"
 
     T_11 = np.eye(4)
     T_21 = geometry.make_T(R, t.ravel())

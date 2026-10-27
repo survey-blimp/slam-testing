@@ -51,3 +51,21 @@ optimizer:
 
 map:
   min_covisibility_weight: 15 # shared map points needed for a covisibility edge (ORB-SLAM3)
+
+tracking:
+  projection_radius_px: 15.0  # search radius (x octave scale) projecting last-frame points (ORB-SLAM3 mono th=15)
+  projection_radius_wide_px: 30.0 # retry radius when too few matches were found
+  max_distance: 50            # max Hamming distance of an accepted tracking match
+  projection_ratio: 0.9       # best must be < ratio * second best among candidates in the radius
+  octave_tolerance: 1         # candidate keypoint octave must be within +-this of the predicted octave
+  min_projection_matches: 20  # fewer matches than this: widen the radius, then fall back to brute force
+  reference_ratio: 0.7        # ratio test for the brute-force fallback against the reference keyframe
+  local_map_radius_px: 5.0    # search radius (x octave scale) for local-map points; pose is already good
+  local_map_max_keyframes: 10 # cap on the local keyframe set used for tracking
+  min_viewing_cos: 0.5        # skip map points viewed > 60 deg away from their mean viewing direction (ORB-SLAM3)
+  min_inliers: 30             # tracking succeeds with at least this many inlier map points
+  min_frames_between_kf: 5    # never insert keyframes more often than this
+  max_frames_between_kf: 30   # always insert a keyframe after this many frames
+  kf_inlier_ratio: 0.9        # new keyframe if inliers < ratio * points tracked by the reference keyframe (ORB-SLAM3 mono)
+  kf_min_inliers: 15          # ...but only if at least this many inliers remain (ORB-SLAM3)
+  kf_ref_min_obs: 2           # a reference-KF point counts as "tracked" if seen by this many keyframes

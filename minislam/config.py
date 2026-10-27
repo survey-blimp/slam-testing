@@ -81,6 +81,26 @@ class OptimizerConfig:
 
 
 @dataclass(frozen=True)
+class TrackingConfig:
+    projection_radius_px: float
+    projection_radius_wide_px: float
+    max_distance: int
+    projection_ratio: float
+    octave_tolerance: int
+    min_projection_matches: int
+    reference_ratio: float
+    local_map_radius_px: float
+    local_map_max_keyframes: int
+    min_viewing_cos: float
+    min_inliers: int
+    min_frames_between_kf: int
+    max_frames_between_kf: int
+    kf_inlier_ratio: float
+    kf_min_inliers: int
+    kf_ref_min_obs: int
+
+
+@dataclass(frozen=True)
 class MapConfig:
     min_covisibility_weight: int
 
@@ -94,6 +114,7 @@ class Config:
     initializer: InitializerConfig
     optimizer: OptimizerConfig
     map: MapConfig
+    tracking: TrackingConfig
 
 
 def _convert(value: Any, target: type, where: str) -> Any:
