@@ -1,0 +1,22 @@
+# minislam default configuration.
+# Every tunable number in the system lives here, with a note on what it does.
+# Values marked (ORB-SLAM3) match the defaults of the original system.
+
+source:
+  width: 640                  # requested capture width (px); calibration must use the same size
+  height: 480                 # requested capture height (px)
+  fps: 30                     # requested webcam frame rate
+  disable_autofocus: true     # ask the webcam to lock focus (focus changes alter the intrinsics)
+  disable_auto_exposure: true # ask the webcam to lock exposure (keeps descriptors stable)
+
+camera:
+  uncalibrated_hfov_deg: 70.0 # horizontal FOV assumed when no camera.yaml exists: fx = W / (2 tan(HFOV/2))
+
+gui:
+  video_fps: 30.0             # max redraw rate of the video pane (Hz)
+  map_fps: 5.0                # redraw rate of the 3D map pane (Hz); lower = cheaper
+  point_size: 3.0             # map point size in the 3D view (px)
+  frustum_size: 0.08          # size of drawn camera frustums, in map units (median init depth = 1)
+  show_track_lines: false     # initial state of the 'T' toggle (track lines in the video)
+  follow_camera: true         # initial state of the 'F' toggle (3D view follows the camera)
+  output_dir: output          # where 'S' and --headless write output/<timestamp>/

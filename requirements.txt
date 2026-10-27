@@ -1,0 +1,10 @@
+numpy>=2.0
+scipy>=1.11
+opencv-python>=4.8
+PySide6>=6.6
+pyqtgraph>=0.13.7
+PyOpenGL>=3.1.7
+PyYAML>=6.0
+pytest>=8.0
+# Optional, dev only (trajectory evaluation against ground truth):
+# evo
