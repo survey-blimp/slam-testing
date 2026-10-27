@@ -1,22 +1,25 @@
-# Quadbox / "JX WiFi" drone camera, 640x480, calibrated 2026-10-26 with tools/calibrate.py --drone
-# using tools/checkerboard_9x6.png shown on a monitor (29 mm squares), 103 views, RMS 0.83 px.
+# Quadbox / "JX WiFi" drone camera, 640x480, calibrated 2026-10-26.
+# Captured with tools/calibrate.py --drone (tools/checkerboard_9x6.png on a monitor, 29 mm
+# squares, motion-blur filter on), 31 views. Re-fitted with tools/calib_report.py
+# --drop-worst 2 --fix-k3 on data/calib_corners_20261026_231652.npz:
+#   * views 20 and 21 dropped (2.6 and 1.3 px error, likely blur; the rest are ~0.13 px median),
+#   * k3 fixed at 0: with k3 free, k2/k3 were -0.98 correlated and took large cancelling values
+#     (-4.2 / +17) for no gain in RMS (0.132 vs 0.137 px), so only k1, k2, p1, p2 are fitted.
+# Result: 29 views, RMS 0.137 px. Horizontal FOV ~34 degrees. Parameter std devs are ~1 px for
+# fx, fy, cx, cy. Replaces two earlier calibrations (20 views RMS 1.22; 103 views RMS 0.83).
 # Use with: python run.py --source drone --camera config/camera_drone_quadbox.yaml
-# Replaces a first 20-view attempt (RMS 1.22 px, fx ~1640) that was too close and over-bright.
-# Horizontal FOV ~34 degrees (fx ~ fy, so square pixels). The principal point is ~26/31 px off
-# the image centre, and k2/k3 are large (-3.6, 11.5): they cancel each other, so distortion at
-# the image edges is poorly constrained. Treat as usable but not final.
 # Pinhole intrinsics + OpenCV distortion (k1, k2, p1, p2, k3).
 image_width: 640
 image_height: 480
-fx: 1033.4514857112404
-fy: 1035.7395213418324
-cx: 346.30483842428373
-cy: 271.50216621786194
+fx: 1045.7865884505864
+fy: 1046.6377520994433
+cx: 343.8722535536758
+cy: 270.86990609471775
 distortion:
-- 0.4085814810640904
-- -3.6204634915844656
-- -0.009374524556602126
-- -0.0011753642886385973
-- 11.48722676014038
-rms_reprojection_error_px: 0.8264547091734057
-n_views: 103
+- 0.30975237970224556
+- -1.6605403614987913
+- -0.005733743799197604
+- -0.00017563821639508557
+- 0.0
+rms_reprojection_error_px: 0.13697533131485692
+n_views: 29
