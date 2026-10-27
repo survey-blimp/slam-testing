@@ -65,6 +65,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--views", type=int, default=20, help="minimum number of views before Enter can finish")
     p.add_argument("--min-motion-px", type=float, default=40.0,
                    help="mean corner displacement vs. every previous capture needed to accept a new view")
+    p.add_argument("--max-motion-px", type=float, default=1.5,
+                   help="reject a view unless the board moved less than this (mean corner shift, px) "
+                        "since the previous frame: filters motion-blurred frames")
     p.add_argument("--subpix-window", type=int, default=11, help="cornerSubPix half-window (px)")
     p.add_argument("--config", type=Path, default=Path("config/default.yaml"))
     p.add_argument("--output", type=Path, default=Path("config/camera.yaml"))
@@ -98,6 +101,18 @@ def differs_enough(corners: np.ndarray, captured: list[np.ndarray], min_motion_p
     return True
 
 
+def is_stationary(corners: np.ndarray, prev: np.ndarray | None, max_motion_px: float) -> bool:
+    """Motion-blur filter: the board barely moved since the previous frame.
+
+    A blurred frame is one where the board moved during the exposure, so it also moved
+    between neighbouring frames. Blur smears the corners and biases cornerSubPix, which
+    distorts the calibration; it is better to wait until the camera is held still.
+    """
+    if prev is None:
+        return False
+    return float(np.mean(np.linalg.norm(corners - prev, axis=-1))) < max_motion_px
+
+
 def calibrate(image_points: list[np.ndarray], obj: np.ndarray,
               size: tuple[int, int]) -> tuple[float, np.ndarray, np.ndarray]:
     object_points = [obj] * len(image_points)
@@ -116,6 +131,7 @@ def capture_live(args: argparse.Namespace, pattern: tuple[int, int]) -> tuple[li
     cfg = load_config(args.config)
     cam = DroneSource(cfg.drone) if args.drone else WebcamSource(args.camera_index, cfg.source)
     captured: list[np.ndarray] = []
+    prev_corners: np.ndarray | None = None
     log.info("Show the board to the camera; views are captured automatically. "
              "Enter finishes once %d views exist; Q / Esc aborts.", args.views)
     try:
@@ -127,9 +143,14 @@ def capture_live(args: argparse.Namespace, pattern: tuple[int, int]) -> tuple[li
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             corners = detect(gray, pattern, args.subpix_window, fast=True)
             view = img.copy()
+            steady = corners is not None and is_stationary(corners, prev_corners, args.max_motion_px)
+            prev_corners = corners
             if corners is not None:
                 cv2.drawChessboardCorners(view, pattern, corners, True)
-                if differs_enough(corners, captured, args.min_motion_px):
+                if not steady:
+                    cv2.putText(view, "hold still", (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                                (0, 0, 255), 2)
+                elif differs_enough(corners, captured, args.min_motion_px):
                     captured.append(corners)
                     view[:] = 255 - view  # flash to show a capture
                     log.info("captured view %d/%d", len(captured), args.views)
