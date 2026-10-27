@@ -59,6 +59,16 @@ def test_scale_is_normalized_to_unit_median_depth():
     assert abs(np.median(depths) - 1.0) < 0.05
 
 
+def test_matches_never_refer_to_an_older_frame():
+    rng = np.random.default_rng(3)
+    prob = two_view_problem(rng, n=300, noise_px=0.5)
+    init = Initializer(CFG, K)
+    init.matches = np.array([[250, 299]])  # pretend an earlier attempt matched these
+    sparse = frame_from_pixels(5, prob.uv2[:20])  # too few features to try
+    assert init.try_initialize(sparse, Map()) is None
+    assert len(init.matches) == 0
+
+
 def test_pure_rotation_is_rejected():
     rng = np.random.default_rng(7)
     p_w = random_points(rng, 300)

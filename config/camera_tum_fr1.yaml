@@ -1,0 +1,9 @@
+# TUM RGB-D Freiburg 1 RGB camera (published calibration), for fr1_xyz / fr1_desk.
+# https://cvg.cit.tum.de/data/datasets/rgbd-dataset/file_formats#intrinsic_camera_calibration_of_the_kinect
+image_width: 640
+image_height: 480
+fx: 517.306408
+fy: 516.469215
+cx: 318.643040
+cy: 255.313989
+distortion: [0.262383, -0.953104, -0.005358, 0.002628, 1.163314]  # k1, k2, p1, p2, k3

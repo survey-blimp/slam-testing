@@ -114,6 +114,7 @@ class Initializer:
     def try_initialize(self, frame: Frame, map_: Map) -> tuple[KeyFrame, KeyFrame] | None:
         """Feed one frame. Returns the two initial keyframes once the map is built."""
         c = self.cfg.initializer
+        self.matches = np.zeros((0, 2), dtype=int)  # matches always refer to the current frame
         if frame.n_features < c.min_features:
             self.message = f"init: too few features ({frame.n_features} < {c.min_features})"
             return None
