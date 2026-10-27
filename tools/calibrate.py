@@ -7,6 +7,10 @@ Usage (print a checkerboard, measure one square):
     python tools/calibrate.py --drone               # Wi-Fi drone camera (laptop on the drone's Wi-Fi)
     python tools/calibrate.py --images path\\to\\saved_board_photos
 
+No printer? ``tools/checkerboard_9x6.png`` is a 9x6 inner-corner board (10x7 squares). Show it
+full screen at 100% zoom, measure one square on the screen with a ruler and pass that as
+``--square-mm``. Only the corner count must match; the square size just sets the board's scale.
+
 Live mode shows the camera feed. When the board is detected *and* its
 position in the image differs enough from every view captured so far, the
 view is captured automatically (so tilt and move the board around: corners,

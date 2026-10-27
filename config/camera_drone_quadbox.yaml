@@ -1,0 +1,22 @@
+# Quadbox / "JX WiFi" drone camera, 640x480, calibrated 2026-10-26 with tools/calibrate.py --drone
+# using tools/checkerboard_9x6.png shown on a monitor (29 mm squares), 20 views.
+# Use with: python run.py --source drone --camera config/camera_drone_quadbox.yaml
+# CAUTION: RMS 1.22 px is above the 1.0 px warning level, and the values look implausible for a
+# toy wide-angle camera (fx ~1640 would mean a ~22 degree field of view, cx is far from the
+# image centre, k3 is huge). Probably too little tilt/variety in the views. Recalibrate before
+# trusting SLAM scale/geometry; the 70 degree uncalibrated fallback may well be better.
+# Pinhole intrinsics + OpenCV distortion (k1, k2, p1, p2, k3).
+image_width: 640
+image_height: 480
+fx: 1640.1999267866097
+fy: 1610.525379225835
+cx: 506.65890646703497
+cy: 361.0913154801749
+distortion:
+- 0.24423973790159847
+- 5.10958264948981
+- 0.023931942858716172
+- 0.0786590133992661
+- -35.17820317795539
+rms_reprojection_error_px: 1.219458183717764
+n_views: 20
