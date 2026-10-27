@@ -85,7 +85,7 @@ def detect(gray: np.ndarray, pattern: tuple[int, int], subpix_window: int,
 def differs_enough(corners: np.ndarray, captured: list[np.ndarray], min_motion_px: float) -> bool:
     """Proxy for "the board pose is new": its corners moved enough in the image."""
     for prev in captured:
-        if np.mean(np.linalg.norm(corners - prev, axis=2)) < min_motion_px:
+        if np.mean(np.linalg.norm(corners - prev, axis=-1)) < min_motion_px:
             return False
     return True
 
