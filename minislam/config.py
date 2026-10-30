@@ -31,6 +31,15 @@ class SourceConfig:
 
 
 @dataclass(frozen=True)
+class DroneConfig:
+    host: str
+    port: int
+    local_port: int
+    hello_period_s: float
+    read_timeout_s: float
+
+
+@dataclass(frozen=True)
 class CameraConfig:
     uncalibrated_hfov_deg: float
 
@@ -135,6 +144,7 @@ class MapConfig:
 @dataclass(frozen=True)
 class Config:
     source: SourceConfig
+    drone: DroneConfig
     camera: CameraConfig
     gui: GuiConfig
     features: FeatureConfig

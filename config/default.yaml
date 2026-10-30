@@ -10,6 +10,13 @@ source:
   disable_auto_exposure: false # true = lock exposure in manual mode (often far too dark on laptop webcams);
                                # false = explicitly switch auto-exposure on, which also repairs a camera left in manual
 
+drone:                        # used by `run.py --source drone` (Wi-Fi toy drone camera, MJPEG over UDP)
+  host: 192.168.0.1           # drone address once the laptop is on the drone's Wi-Fi
+  port: 40000                 # drone UDP port (hello/keep-alive in, video out)
+  local_port: 5010            # local UDP port; the drone sends video back to the port the hello came from
+  hello_period_s: 1.0         # keep-alive interval; the drone stops streaming ~4 s after the last hello
+  read_timeout_s: 5.0         # read() returns None (end of input) if no frame arrives for this long
+
 camera:
   uncalibrated_hfov_deg: 70.0 # horizontal FOV assumed when no camera.yaml exists: fx = W / (2 tan(HFOV/2))
 

@@ -12,6 +12,7 @@ and returns ``None`` when it runs out of frames.
     run left in manual exposure comes back near-black until something turns
     auto back on. If exposure is locked (``disable_auto_exposure: true``),
     ``close()`` switches auto-exposure back on for the same reason.
+  * Drone: ``"drone"`` selects ``minislam/drone.py`` (Wi-Fi toy drone camera over UDP).
   * Video file: timestamps come from a ``<video>.timestamps.txt`` written by
     ``tools/record.py`` if present, otherwise from the container's clock.
   * Image folder: a TUM RGB-D sequence with ``rgb.txt`` (``timestamp path``
@@ -29,7 +30,7 @@ from typing import Protocol
 import cv2
 import numpy as np
 
-from minislam.config import SourceConfig
+from minislam.config import DroneConfig, SourceConfig
 
 log = logging.getLogger(__name__)
 
@@ -177,8 +178,13 @@ class ImageFolderSource:
         pass
 
 
-def open_source(spec: str, cfg: SourceConfig) -> WebcamSource | VideoFileSource | ImageFolderSource:
-    """``spec`` is a webcam index ("0"), a video file, or an image folder."""
+def open_source(spec: str, cfg: SourceConfig, drone_cfg: DroneConfig | None = None):
+    """``spec`` is a webcam index ("0"), "drone", a video file, or an image folder."""
+    if spec == "drone":
+        if drone_cfg is None:
+            raise ValueError("source 'drone' needs the drone config section")
+        from minislam.drone import DroneSource  # local import: keeps socket/threading out of file runs
+        return DroneSource(drone_cfg)
     if spec.isdigit():
         return WebcamSource(int(spec), cfg)
     path = Path(spec)

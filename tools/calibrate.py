@@ -4,7 +4,12 @@ Usage (print a checkerboard, measure one square):
 
     python tools/calibrate.py                       # webcam 0, 9x6 inner corners, 25 mm squares
     python tools/calibrate.py --cols 9 --rows 6 --square-mm 24.5 --camera-index 1
+    python tools/calibrate.py --drone               # Wi-Fi drone camera (laptop on the drone's Wi-Fi)
     python tools/calibrate.py --images path\\to\\saved_board_photos
+
+No printer? ``tools/checkerboard_9x6.png`` is a 9x6 inner-corner board (10x7 squares). Show it
+full screen at 100% zoom, measure one square on the screen with a ruler and pass that as
+``--square-mm``. Only the corner count must match; the square size just sets the board's scale.
 
 Live mode shows the camera feed. When the board is detected *and* its
 position in the image differs enough from every view captured so far, the
@@ -29,6 +34,7 @@ ORB-SLAM3 equivalent: none (ORB-SLAM3 expects a calibrated settings file).
 import argparse
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -38,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from minislam.camera import PinholeCamera  # noqa: E402
 from minislam.config import load_config  # noqa: E402
+from minislam.drone import DroneSource  # noqa: E402
 from minislam.source import IMAGE_SUFFIXES, WebcamSource  # noqa: E402
 
 log = logging.getLogger("calibrate")
@@ -52,13 +59,21 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--rows", type=int, default=6, help="inner corners per column")
     p.add_argument("--square-mm", type=float, default=25.0, help="checkerboard square size (mm)")
     p.add_argument("--camera-index", type=int, default=0)
+    p.add_argument("--drone", action="store_true",
+                   help="use the Wi-Fi drone camera (see the drone: section of the config) instead of a webcam")
     p.add_argument("--images", type=Path, default=None, help="calibrate from a folder of images instead")
-    p.add_argument("--views", type=int, default=20, help="number of views to capture")
+    p.add_argument("--views", type=int, default=20, help="minimum number of views before Enter can finish")
     p.add_argument("--min-motion-px", type=float, default=40.0,
                    help="mean corner displacement vs. every previous capture needed to accept a new view")
+    p.add_argument("--max-motion-px", type=float, default=1.5,
+                   help="reject a view unless the board moved less than this (mean corner shift, px) "
+                        "since the previous frame: filters motion-blurred frames")
     p.add_argument("--subpix-window", type=int, default=11, help="cornerSubPix half-window (px)")
     p.add_argument("--config", type=Path, default=Path("config/default.yaml"))
     p.add_argument("--output", type=Path, default=Path("config/camera.yaml"))
+    p.add_argument("--save-corners", type=Path, default=None,
+                   help="where to save the detected corners for tools/calib_report.py "
+                        "(default data/calib_corners_<time>.npz)")
     return p.parse_args()
 
 
@@ -81,9 +96,21 @@ def detect(gray: np.ndarray, pattern: tuple[int, int], subpix_window: int,
 def differs_enough(corners: np.ndarray, captured: list[np.ndarray], min_motion_px: float) -> bool:
     """Proxy for "the board pose is new": its corners moved enough in the image."""
     for prev in captured:
-        if np.mean(np.linalg.norm(corners - prev, axis=2)) < min_motion_px:
+        if np.mean(np.linalg.norm(corners - prev, axis=-1)) < min_motion_px:
             return False
     return True
+
+
+def is_stationary(corners: np.ndarray, prev: np.ndarray | None, max_motion_px: float) -> bool:
+    """Motion-blur filter: the board barely moved since the previous frame.
+
+    A blurred frame is one where the board moved during the exposure, so it also moved
+    between neighbouring frames. Blur smears the corners and biases cornerSubPix, which
+    distorts the calibration; it is better to wait until the camera is held still.
+    """
+    if prev is None:
+        return False
+    return float(np.mean(np.linalg.norm(corners - prev, axis=-1))) < max_motion_px
 
 
 def calibrate(image_points: list[np.ndarray], obj: np.ndarray,
@@ -102,11 +129,13 @@ def calibrate(image_points: list[np.ndarray], obj: np.ndarray,
 
 def capture_live(args: argparse.Namespace, pattern: tuple[int, int]) -> tuple[list[np.ndarray], tuple[int, int]]:
     cfg = load_config(args.config)
-    cam = WebcamSource(args.camera_index, cfg.source)
+    cam = DroneSource(cfg.drone) if args.drone else WebcamSource(args.camera_index, cfg.source)
     captured: list[np.ndarray] = []
-    log.info("Show the board to the camera; views are captured automatically. Q / Esc aborts.")
+    prev_corners: np.ndarray | None = None
+    log.info("Show the board to the camera; views are captured automatically. "
+             "Enter finishes once %d views exist; Q / Esc aborts.", args.views)
     try:
-        while len(captured) < args.views:
+        while True:
             item = cam.read()
             if item is None:
                 raise RuntimeError("camera stopped delivering frames")
@@ -114,17 +143,26 @@ def capture_live(args: argparse.Namespace, pattern: tuple[int, int]) -> tuple[li
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             corners = detect(gray, pattern, args.subpix_window, fast=True)
             view = img.copy()
+            steady = corners is not None and is_stationary(corners, prev_corners, args.max_motion_px)
+            prev_corners = corners
             if corners is not None:
                 cv2.drawChessboardCorners(view, pattern, corners, True)
-                if differs_enough(corners, captured, args.min_motion_px):
+                if not steady:
+                    cv2.putText(view, "hold still", (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                                (0, 0, 255), 2)
+                elif differs_enough(corners, captured, args.min_motion_px):
                     captured.append(corners)
                     view[:] = 255 - view  # flash to show a capture
                     log.info("captured view %d/%d", len(captured), args.views)
-            cv2.putText(view, f"views {len(captured)}/{args.views}", (10, 25),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            ready = len(captured) >= args.views
+            label = f"views {len(captured)} (min {args.views})" + ("  Enter = calibrate" if ready else "")
+            cv2.putText(view, label, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.imshow("calibrate", view)
-            if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), 27):
                 raise SystemExit("aborted")
+            if key in (10, 13) and ready:
+                break
         return captured, (cam.width, cam.height)
     finally:
         cam.close()
@@ -158,6 +196,13 @@ def main() -> int:
     if len(captured) < 3:
         log.error("Only %d usable views; need at least 3 (20+ recommended)", len(captured))
         return 1
+
+    corners_file = args.save_corners or Path("data") / f"calib_corners_{datetime.now():%Y%m%d_%H%M%S}.npz"
+    corners_file.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(corners_file, corners=np.array([c.reshape(-1, 2) for c in captured]),
+             size=np.array(size), pattern=np.array(pattern), square_mm=args.square_mm)
+    log.info("Saved %d views' corners to %s (analyse with tools/calib_report.py)",
+             len(captured), corners_file)
 
     rms, K, dist = calibrate(captured, board_points(*pattern, args.square_mm / 1000.0), size)
     log.info("RMS reprojection error: %.3f px over %d views", rms, len(captured))
